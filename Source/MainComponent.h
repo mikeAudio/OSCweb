@@ -30,7 +30,8 @@ private:
     static int const waveTableSize = 1024;
     float            waveTable[waveTableSize];
     
-    std::vector<float> phaseVector{};
+    std::vector<float> phaseVector;
+    juce::AudioBuffer<float> fillBuffer;
     
     float phase{};
     float increment{};

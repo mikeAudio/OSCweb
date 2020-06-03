@@ -25,10 +25,10 @@ MainComponent::MainComponent()
     frequencySlider.setSkewFactorFromMidPoint(2000.0);
     addAndMakeVisible(frequencySlider);
     
-    amplitudeSlider.setRange(0.0, 4.0);
+    amplitudeSlider.setRange(0.0, 1.0);
     addAndMakeVisible(amplitudeSlider);
     
-    oscSlider.setRange(1.0, 500.0);
+    oscSlider.setRange(1.0, 1000.0);
     addAndMakeVisible(oscSlider);
     
     webSlider.setRange(1.0, 2.0);
@@ -45,73 +45,69 @@ void MainComponent::updateFrequency(float f, int index)
 {
     frequency = f;
     increment = frequency * waveTableSize / currentSampleRate;
-    phaseVector[index] = fmod((phase + increment), waveTableSize);
+    phaseVector[index] = fmod((phaseVector[index] + increment), waveTableSize);
 }
 
 
 void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
 {
-    frequency = 20;
-    phase = 0;
+    phaseVector.reserve(oscSlider.getMaximum());
+    
+    phaseVector[0] = 0;
+    frequency = 440;
     increment = frequency * waveTableSize / sampleRate;
     currentSampleRate = sampleRate;
     
+    
+    
+    fillBuffer.setSize(2, samplesPerBlockExpected);
     
     for(int i = 0; i < waveTableSize; i++){waveTable[i] = sin(2.f * double_Pi * i / waveTableSize);}
 }
 
 void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFill)
 {
-    
+    auto const buffer = bufferToFill.buffer;
+    buffer->clear();
     
     gain = amplitudeSlider.getValue();
     numOSC = static_cast<int>(oscSlider.getValue());
     webDensity = webSlider.getValue();
+    float subFrequency = frequencySlider.getValue();
     
-    bool numOscChanged = oldNumOSC == numOSC ? true : false;
+    bool numOscChanged = oldNumOSC != numOSC ? true : false;
     
-    float subFrequency = 20;
     
-    auto const buffer = bufferToFill.buffer;
-    
-    buffer->clear();
     if(numOscChanged){phaseVector.clear();}
     
-    for(int i = 0; i < numOSC; i++){
+   
+    for(int i = 0; i < numOSC; i++)
+    {
+        if (numOscChanged){phaseVector.push_back(0.f);}
         
-        
-        float freqStep   = 19980.f / static_cast<float>(numOSC);
-        float freqFactor = 19980.f / (19980.f - freqStep);
-        
-        if (numOscChanged) {
-            phaseVector.push_back(0.f);
-        }
-        
-        if(i == 0)
-        {
-            subFrequency = 20.f;
-        }
-        else
-        {
-            subFrequency *= freqFactor;
-        }
 
-        updateFrequency(subFrequency, i);
-        
-        for(int sample = 0; sample < buffer->getNumSamples(); sample++)
+        if(subFrequency < 20000.f)
         {
-            
-            
-            for(int channel = 0; channel < 2; channel++)
+            for(int sample = 0; sample < buffer->getNumSamples(); sample++)
             {
-                buffer->addSample(channel, sample, waveTable[static_cast<int>(phaseVector[i])] * gain);
+                for(int channel = 0; channel < 2; channel++)
+                {
+                    buffer->addSample(channel, sample, waveTable[static_cast<int>(phaseVector[i])] * gain);
+                }
+                
+                updateFrequency(subFrequency, i);
             }
         }
+     
+        float freqStep   = 19980.f / static_cast<float>(numOSC);
+        float freqFactor = 19980.f / (19980.f - freqStep) * webDensity;
+        subFrequency *= freqFactor;
     }
     
     oldNumOSC = numOSC;
-    
 }
+
+
 
 void MainComponent::releaseResources()
 {
