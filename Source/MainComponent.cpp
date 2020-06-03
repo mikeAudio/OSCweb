@@ -28,10 +28,11 @@ MainComponent::MainComponent()
     amplitudeSlider.setRange(0.0, 1.0);
     addAndMakeVisible(amplitudeSlider);
     
-    oscSlider.setRange(1.0, 1000.0);
+    oscSlider.setRange(1.0, 20000.0);
+    oscSlider.setSkewFactorFromMidPoint(2000);
     addAndMakeVisible(oscSlider);
     
-    webSlider.setRange(1.0, 2.0);
+    webSlider.setRange(1.0, 1.4);
     addAndMakeVisible(webSlider);
     
 }
