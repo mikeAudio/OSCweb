@@ -25,6 +25,15 @@ MainComponent::MainComponent()
     frequencySlider.setSkewFactorFromMidPoint(2000.0);
     addAndMakeVisible(frequencySlider);
     
+    frequencyLabel.attachToComponent(&frequencySlider, true);
+    addAndMakeVisible(frequencyLabel);
+    
+    highcutSlider.setRange(20.0, 20000.0);
+    highcutSlider.setValue(20000.0);
+    highcutSlider.setSkewFactorFromMidPoint(2000.0);
+    addAndMakeVisible(highcutSlider);
+    
+    
     amplitudeSlider.setRange(0.0, 1.0);
     addAndMakeVisible(amplitudeSlider);
     
@@ -74,7 +83,7 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
     gain = amplitudeSlider.getValue();
     numOSC = static_cast<int>(oscSlider.getValue());
     webDensity = webSlider.getValue();
-    float subFrequency = frequencySlider.getValue();
+    float subFrequency = std::floor(frequencySlider.getValue());
     
     bool numOscChanged = oldNumOSC != numOSC ? true : false;
     
@@ -84,10 +93,14 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
    
     for(int i = 0; i < numOSC; i++)
     {
-        if (numOscChanged){phaseVector.push_back(0.f);}
+        if (numOscChanged)
+        {
+            float rndNum = fmod(rand(), waveTableSize);
+            phaseVector.push_back(rndNum);
+        }
         
 
-        if(subFrequency < 20000.f)
+        if(subFrequency < highcutSlider.getValue())
         {
             for(int sample = 0; sample < buffer->getNumSamples(); sample++)
             {
@@ -125,12 +138,14 @@ void MainComponent::resized()
 {
     auto const area = getLocalBounds();
     
-    auto const heightForth = area.getHeight() / 4;
+    auto const heightForth = area.getHeight() / 5;
+    auto const leftBorder  = area.getWidth() / 10;
     
-    amplitudeSlider.setBounds(0, 0, getWidth(), heightForth);
-    frequencySlider.setBounds(0, heightForth, getWidth(), heightForth);
-    oscSlider.setBounds(0, heightForth * 2, getWidth(), heightForth);
-    webSlider.setBounds(0, heightForth * 3, getWidth(), heightForth);
+    amplitudeSlider.setBounds(leftBorder, 0, getWidth(), heightForth);
+    frequencySlider.setBounds(leftBorder, heightForth, getWidth() - leftBorder, heightForth);
+    highcutSlider.setBounds(leftBorder, heightForth * 2, getWidth() - leftBorder, heightForth);
+    oscSlider.setBounds(leftBorder, heightForth * 3, getWidth() - leftBorder, heightForth);
+    webSlider.setBounds(leftBorder, heightForth * 4, getWidth() - leftBorder, heightForth);
     
     
     

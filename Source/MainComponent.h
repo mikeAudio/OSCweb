@@ -44,6 +44,8 @@ private:
     float webDensity;
     
     juce::Slider frequencySlider;
+    juce::Label  frequencyLabel;
+    juce::Slider highcutSlider;
     juce::Slider amplitudeSlider;
     juce::Slider oscSlider;
     juce::Slider webSlider;
