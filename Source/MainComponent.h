@@ -49,6 +49,7 @@ private:
     juce::Slider amplitudeSlider;
     juce::Slider oscSlider;
     juce::Slider webSlider;
+    juce::TextButton algoButton;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };

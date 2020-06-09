@@ -44,6 +44,9 @@ MainComponent::MainComponent()
     webSlider.setRange(1.0, 1.4);
     addAndMakeVisible(webSlider);
     
+    algoButton.setButtonText("linear");
+    algoButton.setClickingTogglesState(true);
+    addAndMakeVisible(algoButton);
 }
 
 MainComponent::~MainComponent()
@@ -80,6 +83,7 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
     auto const buffer = bufferToFill.buffer;
     buffer->clear();
     
+    
     gain = amplitudeSlider.getValue();
     numOSC = static_cast<int>(oscSlider.getValue());
     webDensity = webSlider.getValue();
@@ -112,10 +116,19 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
                 updateFrequency(subFrequency, i);
             }
         }
-     
-        float freqStep   = 19980.f / static_cast<float>(numOSC);
-        float freqFactor = 19980.f / (19980.f - freqStep) * webDensity;
-        subFrequency *= freqFactor;
+        
+        
+        if(algoButton.getToggleState())
+        {
+            float add = (webDensity - 1.f) * 50.f;
+            subFrequency += add;
+        }
+        else
+        {
+            float freqStep   = 19980.f / static_cast<float>(numOSC);
+            float freqFactor = 19980.f / (19980.f - freqStep) * webDensity;
+            subFrequency *= freqFactor;
+        }
     }
     
     oldNumOSC = numOSC;
@@ -128,7 +141,6 @@ void MainComponent::releaseResources()
 
 }
 
-//==============================================================================
 void MainComponent::paint (Graphics& g)
 {
     g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
@@ -145,11 +157,7 @@ void MainComponent::resized()
     frequencySlider.setBounds(leftBorder, heightForth, getWidth() - leftBorder, heightForth);
     highcutSlider.setBounds(leftBorder, heightForth * 2, getWidth() - leftBorder, heightForth);
     oscSlider.setBounds(leftBorder, heightForth * 3, getWidth() - leftBorder, heightForth);
-    webSlider.setBounds(leftBorder, heightForth * 4, getWidth() - leftBorder, heightForth);
-    
-    
-    
-    
-    
+    webSlider.setBounds(0, heightForth * 4, getWidth() / 2, heightForth);
+    algoButton.setBounds(getWidth() / 2, heightForth * 4, getWidth() / 2, heightForth);
     
 }
