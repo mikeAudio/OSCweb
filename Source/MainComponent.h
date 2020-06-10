@@ -28,20 +28,22 @@ public:
 private:
  
     static int const waveTableSize = 1024;
+    static int const maxNumOsc = 20000;
     float            waveTable[waveTableSize];
     
-    std::vector<float> phaseVector;
+    std::vector<int> phaseVector;
+    std::vector<float> gainVector;
     juce::AudioBuffer<float> fillBuffer;
     
     float phase{};
     float increment{};
     float frequency{};
-    float gain{};
     double currentSampleRate;
-    
-    int numOSC;
+
+    juce::ADSR::Parameters parameters_;
+    juce::ADSR envelope;
+    int envelopeIndex;
     int oldNumOSC;
-    float webDensity;
     
     juce::Slider frequencySlider;
     juce::Label  frequencyLabel;
@@ -50,6 +52,9 @@ private:
     juce::Slider oscSlider;
     juce::Slider webSlider;
     juce::TextButton algoButton;
+    juce::TextButton toggleButton;
+    
+    bool oldToggleState = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };

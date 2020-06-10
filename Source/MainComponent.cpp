@@ -37,7 +37,7 @@ MainComponent::MainComponent()
     amplitudeSlider.setRange(0.0, 1.0);
     addAndMakeVisible(amplitudeSlider);
     
-    oscSlider.setRange(1.0, 20000.0);
+    oscSlider.setRange(1.0, maxNumOsc);
     oscSlider.setSkewFactorFromMidPoint(2000);
     addAndMakeVisible(oscSlider);
     
@@ -47,6 +47,10 @@ MainComponent::MainComponent()
     algoButton.setButtonText("linear");
     algoButton.setClickingTogglesState(true);
     addAndMakeVisible(algoButton);
+    
+    toggleButton.setButtonText("Toggle Random Frequency");
+    toggleButton.setClickingTogglesState(false);
+    addAndMakeVisible(toggleButton);
 }
 
 MainComponent::~MainComponent()
@@ -64,7 +68,12 @@ void MainComponent::updateFrequency(float f, int index)
 
 void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
 {
-    phaseVector.reserve(oscSlider.getMaximum());
+    phaseVector.reserve(maxNumOsc);
+    gainVector.reserve(1000);
+    
+    envelope.setSampleRate(sampleRate);
+    parameters_.sustain = 2.f;
+    parameters_.release = 2.f;
     
     phaseVector[0] = 0;
     frequency = 440;
@@ -82,41 +91,67 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
 {
     auto const buffer = bufferToFill.buffer;
     buffer->clear();
+
+    envelope.setParameters(parameters_);
     
     
-    gain = amplitudeSlider.getValue();
-    numOSC = static_cast<int>(oscSlider.getValue());
-    webDensity = webSlider.getValue();
-    float subFrequency = std::floor(frequencySlider.getValue());
+    float masterGain    = amplitudeSlider.getValue();
+    int   numOSC        = static_cast<int>(oscSlider.getValue());
+    float webDensity    = webSlider.getValue();
+    float highFrequency = highcutSlider.getValue();
+    float subFrequency  = std::floor(frequencySlider.getValue());
+    bool  toggleState   = toggleButton.isDown();
+    
     
     bool numOscChanged = oldNumOSC != numOSC ? true : false;
-    
-    
     if(numOscChanged){phaseVector.clear();}
     
-   
+    
+    //envelope start
+    
+    bool isAdsrActive = envelope.isActive();
+    
+    if(!isAdsrActive){envelopeIndex = maxNumOsc + 1;}
+    if(!oldToggleState && toggleState && !isAdsrActive)
+    {
+        envelopeIndex = fmod(rand(), numOSC);
+        envelope.noteOn();
+        envelope.noteOff();
+    }
+    
+    oldToggleState = toggleState;
+    
+    
+    //oscillation:
+    
     for(int i = 0; i < numOSC; i++)
     {
         if (numOscChanged)
         {
-            float rndNum = fmod(rand(), waveTableSize);
-            phaseVector.push_back(rndNum);
+            int rndPhaseNum = fmod(rand(), waveTableSize);
+            phaseVector.push_back(rndPhaseNum);
         }
         
 
-        if(subFrequency < highcutSlider.getValue())
+        if(subFrequency < highFrequency)
         {
             for(int sample = 0; sample < buffer->getNumSamples(); sample++)
             {
+                float gain = 1.f;
+                
+                if(envelopeIndex == i)
+                {
+                    gain = envelope.getNextSample();
+                }
+                
                 for(int channel = 0; channel < 2; channel++)
                 {
-                    buffer->addSample(channel, sample, waveTable[static_cast<int>(phaseVector[i])] * gain);
+                    buffer->addSample(channel, sample, waveTable[phaseVector[i]] * gain);
                 }
                 
                 updateFrequency(subFrequency, i);
             }
         }
-        
         
         if(algoButton.getToggleState())
         {
@@ -132,7 +167,9 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
     }
     
     oldNumOSC = numOSC;
+    buffer->applyGain(masterGain);
 }
+
 
 
 
@@ -158,6 +195,7 @@ void MainComponent::resized()
     highcutSlider.setBounds(leftBorder, heightForth * 2, getWidth() - leftBorder, heightForth);
     oscSlider.setBounds(leftBorder, heightForth * 3, getWidth() - leftBorder, heightForth);
     webSlider.setBounds(0, heightForth * 4, getWidth() / 2, heightForth);
-    algoButton.setBounds(getWidth() / 2, heightForth * 4, getWidth() / 2, heightForth);
+    algoButton.setBounds(getWidth() / 2, heightForth * 4, getWidth() / 2, heightForth / 2);
+    toggleButton.setBounds(getWidth() / 2, heightForth / 2 * 9, getWidth() / 2, heightForth / 2);
     
 }
