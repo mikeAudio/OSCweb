@@ -76,6 +76,7 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
     parameters_.decay   = 0.f;
     parameters_.sustain = 1.f;
     parameters_.release = 2.f;
+    envelope.setParameters(parameters_);
     
     phaseVector[0] = 0;
     frequency = 440;
@@ -91,16 +92,11 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
 
 void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFill)
 {
-
-
-    
-    
+    //prepare buffer
     auto const buffer = bufferToFill.buffer;
     buffer->clear();
-
-    envelope.setParameters(parameters_);
     
-    
+    //get Slider values
     float masterGain    = amplitudeSlider.getValue();
     int   numOSC        = static_cast<int>(oscSlider.getValue());
     float webDensity    = webSlider.getValue();
@@ -113,8 +109,7 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
     if(numOscChanged){phaseVector.clear();}
     
     
-    //envelope start
-    
+    //envelope
     bool isAdsrActive = envelope.isActive();
     
     if(!isAdsrActive){envelopeIndex = maxNumOsc + 1;}
@@ -132,16 +127,16 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
     
     
     //oscillation:
-    
     for(int i = 0; i < numOSC; i++)
     {
+        //Generate new phases, when NumOSC-Slider is moved
         if (numOscChanged)
         {
             int rndPhaseNum = fmod(rand(), waveTableSize);
             phaseVector.push_back(rndPhaseNum);
         }
         
-
+        // Oscillator, that fills the whole buffer at once
         if(subFrequency < highFrequency)
         {
             for(int sample = 0; sample < buffer->getNumSamples(); sample++)
@@ -150,7 +145,7 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
                 
                 if(envelopeIndex == i)
                 {
-                    gain = 1.f + 6 * envelope.getNextSample();
+                    gain = 1.f + 15 * envelope.getNextSample();
                 }
                 
                 for(int channel = 0; channel < 2; channel++)
@@ -162,6 +157,7 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
             }
         }
         
+        //Calculating next frequency
         if(algoButton.getToggleState())
         {
             float add = (webDensity - 1.f) * 50.f;
