@@ -72,7 +72,8 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
     gainVector.reserve(1000);
     
     envelope.setSampleRate(sampleRate);
-    parameters_.sustain = 2.f;
+    parameters_.attack  = 2.f;
+    parameters_.sustain = 1.f;
     parameters_.release = 2.f;
     
     phaseVector[0] = 0;
@@ -89,6 +90,10 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
 
 void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFill)
 {
+
+
+    
+    
     auto const buffer = bufferToFill.buffer;
     buffer->clear();
 
@@ -116,7 +121,6 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
     {
         envelopeIndex = fmod(rand(), numOSC);
         envelope.noteOn();
-        envelope.noteOff();
     }
     
     oldToggleState = toggleState;
@@ -141,7 +145,7 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
                 
                 if(envelopeIndex == i)
                 {
-                    gain = envelope.getNextSample();
+                    gain = 1.f + 4 * envelope.getNextSample();
                 }
                 
                 for(int channel = 0; channel < 2; channel++)

@@ -9,10 +9,12 @@
     your controls and content.
 */
 class MainComponent   : public AudioAppComponent
+
 {
 public:
     //==============================================================================
     MainComponent();
+    
     ~MainComponent();
 
     void updateFrequency(float f, int index);
