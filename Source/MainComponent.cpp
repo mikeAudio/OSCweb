@@ -73,6 +73,7 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
     
     envelope.setSampleRate(sampleRate);
     parameters_.attack  = 2.f;
+    parameters_.decay   = 0.f;
     parameters_.sustain = 1.f;
     parameters_.release = 2.f;
     
@@ -122,6 +123,10 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
         envelopeIndex = fmod(rand(), numOSC);
         envelope.noteOn();
     }
+    if(envelope.isInSustainState())
+    {
+        envelope.noteOff();
+    }
     
     oldToggleState = toggleState;
     
@@ -145,7 +150,7 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
                 
                 if(envelopeIndex == i)
                 {
-                    gain = 1.f + 4 * envelope.getNextSample();
+                    gain = 1.f + 6 * envelope.getNextSample();
                 }
                 
                 for(int channel = 0; channel < 2; channel++)
