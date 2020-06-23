@@ -4,10 +4,8 @@
 
 MainComponent::MainComponent()
 {
-
     setSize(800, 600);
 
-    
     if (RuntimePermissions::isRequired (RuntimePermissions::recordAudio)
         && ! RuntimePermissions::isGranted (RuntimePermissions::recordAudio))
     {
@@ -16,9 +14,12 @@ MainComponent::MainComponent()
     }
     else
     {
-        // Specify the number of input and output channels that we want to open
         setAudioChannels (2, 2);
     }
+    
+    connect(9001);
+    addListener (this, "/juce/rotaryknob");
+    
     
     frequencySlider.setRange(20.0, 20000.0);
     frequencySlider.setValue(440.0);
@@ -66,7 +67,7 @@ void MainComponent::updateFrequency(float f, int index)
 }
 
 
-void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
+void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
 {
     phaseVector.reserve(maxNumOsc);
     gainVector.reserve(1000);
@@ -82,8 +83,6 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
     frequency = 440;
     increment = frequency * waveTableSize / sampleRate;
     currentSampleRate = sampleRate;
-    
-    
     
     fillBuffer.setSize(2, samplesPerBlockExpected);
     
@@ -112,12 +111,20 @@ void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFil
     //envelope
     bool isAdsrActive = envelope.isActive();
     
-    if(!isAdsrActive){envelopeIndex = maxNumOsc + 1;}
-    if(!oldToggleState && toggleState && !isAdsrActive)
+    if(!isAdsrActive){envelopeIndex = -1;}
+    if(((!oldToggleState && toggleState) || freqIsTriggeredByOSC) && !isAdsrActive)
     {
-        envelopeIndex = fmod(rand(), numOSC);
-        envelope.noteOn();
+        if (freqIsTriggeredByOSC)
+        {
+            envelopeIndex = triggeredFrequencyIndex;
+        }
+        else
+        {
+            envelopeIndex = fmod(rand(), numOSC);
+            envelope.noteOn();
+        }
     }
+    
     if(envelope.isInSustainState())
     {
         envelope.noteOff();

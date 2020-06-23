@@ -8,7 +8,9 @@
     This component lives inside our window, and this is where you should put all
     your controls and content.
 */
-class MainComponent   : public AudioAppComponent
+class MainComponent   : public AudioAppComponent,
+                        private OSCReceiver,
+                        private OSCReceiver::ListenerWithOSCAddress<OSCReceiver::MessageLoopCallback>
 
 {
 public:
@@ -28,6 +30,18 @@ public:
     void resized() override;
 
 private:
+    
+    void oscMessageReceived (const OSCMessage& message) override
+    {
+        freqIsTriggeredByOSC = false;
+        triggeredFrequencyIndex = 20001;
+        
+        if (message.size() == 1 && message[0].isFloat32())
+        {
+            freqIsTriggeredByOSC = true;
+            triggeredFrequencyIndex = message[0].getFloat32();
+        }
+    }
  
     static int const waveTableSize = 1024;
     static int const maxNumOsc = 20000;
@@ -41,6 +55,9 @@ private:
     float increment{};
     float frequency{};
     double currentSampleRate;
+    
+    bool freqIsTriggeredByOSC;
+    int  triggeredFrequencyIndex;
 
     juce::ADSR::Parameters parameters_;
     juce::ADSR envelope;
