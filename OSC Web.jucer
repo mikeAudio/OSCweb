@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<JUCERPROJECT id="X2vyYi" name="OSC Web" projectType="guiapp" jucerVersion="5.4.7">
+<JUCERPROJECT id="X2vyYi" name="OSC Web" projectType="guiapp" displaySplashScreen="1"
+              jucerFormatVersion="1">
   <MAINGROUP id="CKNsT9" name="OSC Web">
     <GROUP id="{DBC73B22-D9AB-1182-C383-E20C2CA51FA1}" name="Source">
+      <FILE id="SjiVkh" name="readerwriterqueue.h" compile="0" resource="0"
+            file="Source/readerwriterqueue.h"/>
+      <FILE id="NXLmn4" name="atomicops.h" compile="0" resource="0" file="Source/atomicops.h"/>
       <FILE id="ZTgim7" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
       <FILE id="xep6Kf" name="MainComponent.cpp" compile="1" resource="0"
             file="Source/MainComponent.cpp"/>
