@@ -10,8 +10,7 @@
     This component lives inside our window, and this is where you should put all
     your controls and content.
 */
-class MainComponent
-    : public AudioAppComponent
+class MainComponent : public AudioAppComponent
 
 {
 public:
@@ -31,7 +30,6 @@ public:
     void resized() override;
 
 private:
-
     static int const waveTableSize = 1024;
     static int const maxNumOsc     = 20000;
     float waveTable[waveTableSize];
@@ -44,8 +42,10 @@ private:
     float increment {};
     float frequency {};
     double currentSampleRate;
-    
-    int oldNumOsc{};
+
+    int oldNumOsc {};
+
+    std::array<float, 10000> envelopeValues {};
 
     juce::Slider frequencySlider;
     juce::Label frequencyLabel;
@@ -54,7 +54,6 @@ private:
     juce::Slider oscSlider;
     juce::Slider webSlider;
     juce::TextButton algoButton;
-    juce::TextButton toggleButton;
     juce::TextEditor portNumberEditor;
 
     bool oldToggleState = false;
@@ -67,8 +66,8 @@ private:
     std::atomic<bool> doneFlag {false};
 
     std::thread udpThread;
-    
-    std::array<int, 512> activeFrequencies{};
+
+    std::array<int, 512> activeFrequencies {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

@@ -1,31 +1,62 @@
 
 #include "MainComponent.h"
 
+#include <cstdint>
+namespace mc
+{
+namespace net
+{
+template<class T>
+constexpr auto ntoh(T) -> T = delete;
+constexpr auto ntoh(char v) noexcept -> char { return v; }
+constexpr auto ntoh(uint8_t v) noexcept -> uint8_t { return v; }
+constexpr auto ntoh(int8_t v) noexcept -> int8_t { return v; }
+constexpr auto ntoh(uint16_t v) noexcept -> uint16_t
+{
+    return uint16_t(v << uint16_t {8}) | uint16_t(v >> uint16_t {8});
+}
+constexpr auto ntoh(uint32_t v) noexcept -> uint32_t
+{
+    auto const a = v << 24;
+    auto const b = (v & 0x0000FF00) << 8;
+    auto const c = (v & 0x00FF0000) >> 8;
+    auto const d = v >> 24;
+    return a | b | c | d;
+}
+template<class T>
+constexpr auto hton(T) -> T = delete;
+constexpr auto hton(char v) noexcept -> char { return v; }
+constexpr auto hton(int8_t v) noexcept -> int8_t { return v; }
+constexpr auto hton(uint8_t v) noexcept -> uint8_t { return v; }
+constexpr auto hton(uint16_t v) noexcept -> uint16_t { return ntoh(v); }
+constexpr auto hton(uint32_t v) noexcept -> uint32_t { return ntoh(v); }
+}  // namespace net
+}  // namespace mc
+
 MainComponent::MainComponent()
     : udpThread([this]() {
-        udp.bindToPort(portNumber);
+        udp.bindToPort(portNumber, "0.0.0.0");
 
         if (udp.waitUntilReady(true, 1000) == 1)
         {
             while (true)
             {
-                // auto buffer = std::array<std::uint8_t, 1024>{};
                 uint8_t buffer[1024] = {};
                 uint8_t* position    = nullptr;
 
                 auto numBytes = udp.read(static_cast<void*>(buffer), sizeof(buffer), false);
-                position      = buffer;
-
-                jassert(numBytes > 0);
+                position      = &buffer[0];
 
                 while (numBytes > 0)
                 {
-                    auto data = *reinterpret_cast<const uint16_t*>(position);
+                    auto data = mc::net::ntoh(*reinterpret_cast<const uint16_t*>(position));
                     position++;
                     position++;
                     numBytes -= 2;
 
                     queue.emplace(data);
+
+                    DBG(data);
                 }
             }
         }
@@ -72,10 +103,6 @@ MainComponent::MainComponent()
     algoButton.setClickingTogglesState(true);
     addAndMakeVisible(algoButton);
 
-    toggleButton.setButtonText("Toggle Random Frequency");
-    toggleButton.setClickingTogglesState(false);
-    addAndMakeVisible(toggleButton);
-
     portNumberEditor.setMultiLine(false);
     portNumberEditor.setEscapeAndReturnKeysConsumed(true);
     portNumberEditor.setCaretVisible(true);
@@ -84,6 +111,8 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
+    udp.shutdown();
+
     if (udpThread.joinable()) { udpThread.join(); }
 
     shutdownAudio();
@@ -123,27 +152,22 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     float webDensity    = webSlider.getValue();
     float highFrequency = highcutSlider.getValue();
     float subFrequency  = std::floor(frequencySlider.getValue());
-    bool toggleState    = toggleButton.isDown();
 
-    
-    //UDP Receive
+    // UDP Receive
     activeFrequencies.fill(0);
-    
-    auto data = -1;
+
     int udpReadIndex = 0;
-    
-    while(queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
+
+    while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
     {
         queue.try_dequeue(activeFrequencies[udpReadIndex]);
+        DBG(activeFrequencies[udpReadIndex]);
         udpReadIndex++;
     }
-    
 
-    //If the number of oscillators changed, delete old phases
+    // If the number of oscillators changed, delete old phases
     bool numOscChanged = oldNumOsc != numOSC ? true : false;
     if (numOscChanged) { phaseVector.clear(); }
-
-
 
     // oscillation:
     for (int i = 0; i < numOSC; i++)
@@ -205,5 +229,4 @@ void MainComponent::resized()
     webSlider.setBounds(0, heightForth * 4, getWidth() / 2, heightForth / 2);
     portNumberEditor.setBounds(0, heightForth * 4 + heightForth / 2, getWidth() / 2, heightForth / 2);
     algoButton.setBounds(getWidth() / 2, heightForth * 4, getWidth() / 2, heightForth / 2);
-    toggleButton.setBounds(getWidth() / 2, heightForth / 2 * 9, getWidth() / 2, heightForth / 2);
 }
