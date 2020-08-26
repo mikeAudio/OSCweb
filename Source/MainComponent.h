@@ -3,6 +3,7 @@
 
 #include "readerwriterqueue.h"
 #include <JuceHeader.h>
+#include <cstring>
 #include <thread>
 
 //==============================================================================
@@ -10,6 +11,34 @@
     This component lives inside our window, and this is where you should put all
     your controls and content.
 */
+enum class MessageType : uint8_t
+{
+    Performance = 0,
+    Initialisation,
+    InitialisationDone,
+    Unknown,
+};
+struct PerformanceMessage
+{
+    MessageType type;
+    uint16_t index;
+};
+static_assert(sizeof(PerformanceMessage) == 4, "");
+
+struct InitialisationMessage
+{
+    MessageType type;
+    uint16_t index;
+    float frequency;
+};
+static_assert(sizeof(InitialisationMessage) == 8, "");
+
+struct InitialisationDoneMessage
+{
+    MessageType type;
+};
+static_assert(sizeof(InitialisationDoneMessage) == 1, "");
+
 class MainComponent : public AudioAppComponent
 
 {
@@ -46,6 +75,7 @@ private:
     int oldNumOsc {};
 
     std::array<float, 10000> envelopeValues {};
+    std::array<float, 20000> listOfFrequencies {};
 
     juce::Slider frequencySlider;
     juce::Label frequencyLabel;
@@ -66,8 +96,10 @@ private:
     std::atomic<bool> doneFlag {false};
 
     std::thread udpThread;
+    std::atomic<bool> systemIsInInitMode{};
+    int numFrequenciesReceived;
 
-    std::array<int, 512> activeFrequencies {};
+    std::array<int, 512> spikingFrequencies {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

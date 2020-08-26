@@ -37,26 +37,70 @@ MainComponent::MainComponent()
     : udpThread([this]() {
         udp.bindToPort(portNumber, "0.0.0.0");
 
-        if (udp.waitUntilReady(true, 1000) == 1)
+        auto status = udp.waitUntilReady(true, 30000);
+
+        if (status <= 0) { DBG("Error connecting to UDP Port"); }
+
+        if (status == 1)
         {
+            int initCyclesCounter = 0;
+
             while (true)
             {
-                uint8_t buffer[1024] = {};
-                uint8_t* position    = nullptr;
+                uint8_t buffer[8]   = {};
+                auto const numBytes = udp.read(static_cast<void*>(buffer), sizeof(buffer), false);
 
-                auto numBytes = udp.read(static_cast<void*>(buffer), sizeof(buffer), false);
-                position      = &buffer[0];
-
-                while (numBytes > 0)
+                if (numBytes > 0)
                 {
-                    auto data = mc::net::ntoh(*reinterpret_cast<const uint16_t*>(position));
-                    position++;
-                    position++;
-                    numBytes -= 2;
+                    MessageType type = MessageType::Unknown;
+                    std::memcpy(&type, &buffer, sizeof(MessageType));
 
-                    queue.emplace(data);
+                    switch (type)
+                    {
+                        case MessageType::Performance:
+                        {
+                            auto msg = PerformanceMessage {};
+                            std::memcpy(&msg.index, buffer + 2, sizeof(PerformanceMessage::index));
 
-                    DBG(data);
+                            queue.enqueue(msg.index);
+
+                            break;
+                        }
+
+                        case MessageType::Initialisation:
+                        {
+                            systemIsInInitMode.store(true);
+                            listOfFrequencies.fill(0.f);
+
+                            if (initCyclesCounter > numFrequenciesReceived)
+                            {
+                                DBG("Initialisation Failed - not enough frequencies received");
+                                break;
+                            }
+
+                            auto msg = InitialisationMessage {};
+                            std::memcpy(&msg.index, buffer + 1, sizeof(InitialisationMessage::index));
+                            std::memcpy(&msg.frequency, buffer + 3, sizeof(InitialisationMessage::frequency));
+
+                            if (msg.frequency == 0) { numFrequenciesReceived = msg.index; }
+                            else
+                            {
+                                listOfFrequencies[msg.index] = msg.frequency;
+                            }
+
+                            if (listOfFrequencies.size() == numFrequenciesReceived)
+                            {
+                                systemIsInInitMode = false;
+                                DBG("Initialisatin Done");
+                            }
+
+                            initCyclesCounter++;
+
+                            break;
+                        }
+
+                        default: jassertfalse; break;
+                    }
                 }
             }
         }
@@ -154,14 +198,14 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     float subFrequency  = std::floor(frequencySlider.getValue());
 
     // UDP Receive
-    activeFrequencies.fill(0);
+    spikingFrequencies.fill(0);
 
     int udpReadIndex = 0;
 
     while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
     {
-        queue.try_dequeue(activeFrequencies[udpReadIndex]);
-        DBG(activeFrequencies[udpReadIndex]);
+        queue.try_dequeue(spikingFrequencies[udpReadIndex]);
+        // DBG(spikingFrequencies[udpReadIndex]);
         udpReadIndex++;
     }
 
@@ -172,7 +216,7 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     // oscillation:
     for (int i = 0; i < numOSC; i++)
     {
-        // Generate new phases, when NumOSC-Slider is moved
+        // Generate new phases, when NumOSC-Slider was moved
         if (numOscChanged)
         {
             int rndPhaseNum = fmod(rand(), waveTableSize);
@@ -211,7 +255,7 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     buffer->applyGain(masterGain);
 }
 
-void MainComponent::releaseResources() {}
+void MainComponent::releaseResources() { }
 
 void MainComponent::paint(Graphics& g) { g.fillAll(getLookAndFeel().findColour(ResizableWindow::backgroundColourId)); }
 
