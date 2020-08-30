@@ -60,7 +60,7 @@ MainComponent::MainComponent()
                         case MessageType::Performance:
                         {
                             auto msg = PerformanceMessage {};
-                            std::memcpy(&msg.index, buffer + 2, sizeof(PerformanceMessage::index));
+                            std::memcpy(&msg.index, buffer + 1, sizeof(PerformanceMessage::index));
 
                             queue.enqueue(msg.index);
 
@@ -69,12 +69,16 @@ MainComponent::MainComponent()
 
                         case MessageType::Initialisation:
                         {
-                            systemIsInInitMode.store(true);
-                            listOfFrequencies.fill(0.f);
+                            if (initCyclesCounter == 0)
+                            {
+                                systemIsInInitMode.store(true);
+                                listOfFrequencies.fill(0.f);
+                            }
 
-                            if (initCyclesCounter > numFrequenciesReceived)
+                            if (initCyclesCounter + 2 > numFrequenciesReceived)  // 2 Toleranz
                             {
                                 DBG("Initialisation Failed - not enough frequencies received");
+                                initCyclesCounter = 0;
                                 break;
                             }
 
@@ -88,13 +92,14 @@ MainComponent::MainComponent()
                                 listOfFrequencies[msg.index] = msg.frequency;
                             }
 
-                            if (listOfFrequencies.size() == numFrequenciesReceived)
+                            initCyclesCounter++;
+
+                            if (initCyclesCounter == numFrequenciesReceived)
                             {
                                 systemIsInInitMode = false;
-                                DBG("Initialisatin Done");
+                                DBG("Initialisation Done");
+                                initCyclesCounter = 0;
                             }
-
-                            initCyclesCounter++;
 
                             break;
                         }
@@ -141,11 +146,16 @@ MainComponent::MainComponent()
     addAndMakeVisible(oscSlider);
 
     webSlider.setRange(1.0, 1.4);
+    webSlider.setValue(1.1f);
     addAndMakeVisible(webSlider);
 
     algoButton.setButtonText("linear");
     algoButton.setClickingTogglesState(true);
     addAndMakeVisible(algoButton);
+
+    triggerFreqButton.setButtonText("Trigger Frequency");
+    triggerFreqButton.setClickingTogglesState(true);
+    addAndMakeVisible(triggerFreqButton);
 
     portNumberEditor.setMultiLine(false);
     portNumberEditor.setEscapeAndReturnKeysConsumed(true);
@@ -198,20 +208,34 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     float subFrequency  = std::floor(frequencySlider.getValue());
 
     // UDP Receive
-    spikingFrequencies.fill(0);
+    spikingFrequencies.fill(-1);
 
     int udpReadIndex = 0;
+    /*
+        while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
+        {
+            queue.try_dequeue(spikingFrequencies[udpReadIndex]);
 
-    while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
+            udpReadIndex++;
+        }
+     */
+    int numCycles = fmod(rand(), maxIndexToReadUdpMessage);
+
+    for (int i = 0; i < numCycles; i++) { spikingFrequencies[i] = fmod(rand(), 20000); }
+
+    for (auto& f : spikingFrequencies)
     {
-        queue.try_dequeue(spikingFrequencies[udpReadIndex]);
-        // DBG(spikingFrequencies[udpReadIndex]);
-        udpReadIndex++;
+        if (f == -1) { break; }
+        env.trigger(f);
     }
 
-    // If the number of oscillators changed, delete old phases
+    // If the number of oscillators changed, delete old phases & envelope gains
     bool numOscChanged = oldNumOsc != numOSC ? true : false;
-    if (numOscChanged) { phaseVector.clear(); }
+    if (numOscChanged)
+    {
+        phaseVector.clear();
+        env.reset();
+    }
 
     // oscillation:
     for (int i = 0; i < numOSC; i++)
@@ -228,10 +252,10 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
         {
             for (int sample = 0; sample < buffer->getNumSamples(); sample++)
             {
-                float gain = 1.f;
+                env.tick(i);
 
                 for (int channel = 0; channel < 2; channel++)
-                { buffer->addSample(channel, sample, waveTable[phaseVector[i]] * gain); }
+                { buffer->addSample(channel, sample, waveTable[phaseVector[i]] * env.getGain(i)); }
 
                 updateFrequency(subFrequency, i);
             }
@@ -273,4 +297,5 @@ void MainComponent::resized()
     webSlider.setBounds(0, heightForth * 4, getWidth() / 2, heightForth / 2);
     portNumberEditor.setBounds(0, heightForth * 4 + heightForth / 2, getWidth() / 2, heightForth / 2);
     algoButton.setBounds(getWidth() / 2, heightForth * 4, getWidth() / 2, heightForth / 2);
+    triggerFreqButton.setBounds(getWidth() / 2, heightForth * 4 + heightForth / 2, getWidth() / 2, heightForth / 2);
 }

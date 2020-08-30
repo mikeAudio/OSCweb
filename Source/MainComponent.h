@@ -39,6 +39,42 @@ struct InitialisationDoneMessage
 };
 static_assert(sizeof(InitialisationDoneMessage) == 1, "");
 
+class ExponentialDecay
+{
+public:
+    ExponentialDecay() { reset(); }
+
+    void reset() { gains.fill(defaultGain); }
+
+    void trigger(int index) { gains[index] = defaultGain - 0.1; }
+
+    void tick(int index)
+    {
+        float g = gains[index];
+
+        if (g < defaultGain && g > -maxGain)  //
+        { g *= attackFactor; }
+        if (g < (-maxGain))  //
+        { g = -g; }
+        if (g > defaultGain + 0.5f)  //
+        { g *= decayFactor; }
+        if (g < defaultGain + 0.5f && g > defaultGain)  //
+        { g = defaultGain; }
+
+        gains[index] = g;
+    }
+
+    float getGain(int index) { return abs(gains[index]); }
+
+private:
+    float maxGain {5.f};
+    float defaultGain {0.f};
+    float attackFactor {1.001f};
+    float decayFactor {0.99996f};
+    std::array<bool, 20000> inAttackPhase {};
+    std::array<float, 20000> gains {};
+};
+
 class MainComponent : public AudioAppComponent
 
 {
@@ -74,6 +110,8 @@ private:
 
     int oldNumOsc {};
 
+    ExponentialDecay env {};
+
     std::array<float, 10000> envelopeValues {};
     std::array<float, 20000> listOfFrequencies {};
 
@@ -84,6 +122,7 @@ private:
     juce::Slider oscSlider;
     juce::Slider webSlider;
     juce::TextButton algoButton;
+    juce::TextButton triggerFreqButton;
     juce::TextEditor portNumberEditor;
 
     bool oldToggleState = false;
@@ -96,7 +135,7 @@ private:
     std::atomic<bool> doneFlag {false};
 
     std::thread udpThread;
-    std::atomic<bool> systemIsInInitMode{};
+    std::atomic<bool> systemIsInInitMode {};
     int numFrequenciesReceived;
 
     std::array<int, 512> spikingFrequencies {};
