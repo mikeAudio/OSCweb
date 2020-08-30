@@ -141,6 +141,15 @@ MainComponent::MainComponent()
     amplitudeSlider.setRange(0.0, 1.0);
     addAndMakeVisible(amplitudeSlider);
 
+    attackSlider.setRange(1.0000001f, 1.01f);
+    addAndMakeVisible(attackSlider);
+
+    decaySlider.setRange(0.999f, 0.99999f);
+    addAndMakeVisible(decaySlider);
+
+    noiseGainSlider.setRange(0.f, 1.f);
+    addAndMakeVisible(noiseGainSlider);
+
     oscSlider.setRange(1.0, maxNumOsc);
     oscSlider.setSkewFactorFromMidPoint(2000);
     addAndMakeVisible(oscSlider);
@@ -206,6 +215,9 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     float webDensity    = webSlider.getValue();
     float highFrequency = highcutSlider.getValue();
     float subFrequency  = std::floor(frequencySlider.getValue());
+    env.defaultGain     = noiseGainSlider.getValue();
+    env.attackFactor    = attackSlider.getValue();
+    env.decayFactor     = decaySlider.getValue();
 
     // UDP Receive
     spikingFrequencies.fill(-1);
@@ -276,7 +288,7 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     }
 
     oldNumOsc = numOSC;
-    buffer->applyGain(masterGain);
+    buffer->applyGain(masterGain * 0.5f);
 }
 
 void MainComponent::releaseResources() { }
@@ -288,14 +300,19 @@ void MainComponent::resized()
     auto const area = getLocalBounds();
 
     auto const heightForth = area.getHeight() / 5;
-    auto const leftBorder  = area.getWidth() / 10;
+    auto const halfWidth   = area.getWidth() / 2;
 
-    amplitudeSlider.setBounds(leftBorder, 0, getWidth(), heightForth);
-    frequencySlider.setBounds(leftBorder, heightForth, getWidth() - leftBorder, heightForth);
-    highcutSlider.setBounds(leftBorder, heightForth * 2, getWidth() - leftBorder, heightForth);
-    oscSlider.setBounds(leftBorder, heightForth * 3, getWidth() - leftBorder, heightForth);
-    webSlider.setBounds(0, heightForth * 4, getWidth() / 2, heightForth / 2);
-    portNumberEditor.setBounds(0, heightForth * 4 + heightForth / 2, getWidth() / 2, heightForth / 2);
-    algoButton.setBounds(getWidth() / 2, heightForth * 4, getWidth() / 2, heightForth / 2);
-    triggerFreqButton.setBounds(getWidth() / 2, heightForth * 4 + heightForth / 2, getWidth() / 2, heightForth / 2);
+    amplitudeSlider.setBounds(0, 0, halfWidth, heightForth);
+    frequencySlider.setBounds(0, heightForth, halfWidth, heightForth);
+    highcutSlider.setBounds(0, heightForth * 2, halfWidth, heightForth);
+    oscSlider.setBounds(0, heightForth * 3, halfWidth, heightForth);
+    webSlider.setBounds(0, heightForth * 4, halfWidth, heightForth / 2);
+
+    noiseGainSlider.setBounds(halfWidth, 0, halfWidth, heightForth);
+    attackSlider.setBounds(halfWidth, heightForth, halfWidth, heightForth);
+    decaySlider.setBounds(halfWidth, heightForth * 2, halfWidth, heightForth);
+
+    portNumberEditor.setBounds(0, heightForth * 4 + heightForth / 2, halfWidth, heightForth / 2);
+    algoButton.setBounds(halfWidth, heightForth * 4, halfWidth, heightForth / 2);
+    triggerFreqButton.setBounds(halfWidth, heightForth * 4 + heightForth / 2, halfWidth, heightForth / 2);
 }

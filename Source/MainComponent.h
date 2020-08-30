@@ -56,9 +56,9 @@ public:
         { g *= attackFactor; }
         if (g < (-maxGain))  //
         { g = -g; }
-        if (g > defaultGain + 0.5f)  //
+        if (g > defaultGain + 0.1f)  //
         { g *= decayFactor; }
-        if (g < defaultGain + 0.5f && g > defaultGain)  //
+        if (g < defaultGain + 0.1f && g > defaultGain)  //
         { g = defaultGain; }
 
         gains[index] = g;
@@ -66,12 +66,12 @@ public:
 
     float getGain(int index) { return abs(gains[index]); }
 
-private:
-    float maxGain {5.f};
     float defaultGain {0.f};
     float attackFactor {1.001f};
     float decayFactor {0.99996f};
-    std::array<bool, 20000> inAttackPhase {};
+
+private:
+    float maxGain {2.f};
     std::array<float, 20000> gains {};
 };
 
@@ -121,6 +121,9 @@ private:
     juce::Slider amplitudeSlider;
     juce::Slider oscSlider;
     juce::Slider webSlider;
+    juce::Slider attackSlider;
+    juce::Slider decaySlider;
+    juce::Slider noiseGainSlider;
     juce::TextButton algoButton;
     juce::TextButton triggerFreqButton;
     juce::TextEditor portNumberEditor;
