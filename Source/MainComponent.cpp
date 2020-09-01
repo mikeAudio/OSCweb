@@ -166,7 +166,7 @@ MainComponent::MainComponent()
     algoButton.setClickingTogglesState(true);
     addAndMakeVisible(algoButton);
 
-    triggerFreqButton.setButtonText("Trigger Frequency");
+    triggerFreqButton.setButtonText("Activate UDP");
     triggerFreqButton.setClickingTogglesState(true);
     addAndMakeVisible(triggerFreqButton);
 
@@ -214,8 +214,9 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     buffer->clear();
 
     // get Slider values
+    bool udpMode        = triggerFreqButton.getToggleState();
     float masterGain    = amplitudeSlider.getValue();
-    int numOSC          = numFrequenciesReceived;//static_cast<int>(oscSlider.getValue());
+    int numOSC          = udpMode ? numFrequenciesReceived : static_cast<int>(oscSlider.getValue());
     float webDensity    = webSlider.getValue();
     float highFrequency = highcutSlider.getValue();
     float subFrequency  = std::floor(frequencySlider.getValue());
@@ -226,26 +227,32 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     // UDP Receive
     spikingFrequencies.fill(-1);
 
-    int udpReadIndex = 0;
-
-    while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
+    if (udpMode)
     {
-        queue.try_dequeue(spikingFrequencies[udpReadIndex]);
 
-        udpReadIndex++;
+        int udpReadIndex = 0;
+
+        while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
+        {
+            queue.try_dequeue(spikingFrequencies[udpReadIndex]);
+
+            udpReadIndex++;
+        }
     }
-    /*
-      int numCycles = fmod(rand(), maxIndexToReadUdpMessage);
-
-      for (int i = 0; i < numCycles; i++) { spikingFrequencies[i] = fmod(rand(), 20000); }
-
-   */
-    for (auto& f : spikingFrequencies)
+    else
     {
-        if (f == -1) { break; }
-        env.trigger(f);
-        DBG("Audio Thread:");
-        DBG(f);
+
+        int numCycles = fmod(rand(), maxIndexToReadUdpMessage);
+
+        for (int i = 0; i < numCycles; i++) { spikingFrequencies[i] = fmod(rand(), 20000); }
+
+        for (auto& f : spikingFrequencies)
+        {
+            if (f == -1) { break; }
+            env.trigger(f);
+            // DBG("Audio Thread:");
+            // DBG(f);
+        }
     }
 
     // If the number of oscillators changed, delete old phases & envelope gains
@@ -276,29 +283,35 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
                 for (int channel = 0; channel < 2; channel++)
                 { buffer->addSample(channel, sample, waveTable[phaseVector[i]] * env.getGain(i)); }
 
-                updateFrequency(listOfFrequencies[i], i);
+                if (udpMode) { updateFrequency(listOfFrequencies[i], i); }
+                else
+                {
+                    updateFrequency(subFrequency, i);
+                }
             }
         }
-
-        // Calculating next frequency
-//        if (algoButton.getToggleState())
-//        {
-//            float add = (webDensity - 1.f) * 50.f;
-//            subFrequency += add;
-//        }
-//        else
-//        {
-//            float freqStep   = 19980.f / static_cast<float>(numOSC);
-//            float freqFactor = 19980.f / (19980.f - freqStep) * webDensity;
-//            subFrequency *= freqFactor;
-//        }
+        if (!udpMode)
+        {
+            // Calculating next frequency
+            if (algoButton.getToggleState())
+            {
+                float add = (webDensity - 1.f) * 50.f;
+                subFrequency += add;
+            }
+            else
+            {
+                float freqStep   = 19980.f / static_cast<float>(numOSC);
+                float freqFactor = 19980.f / (19980.f - freqStep) * webDensity;
+                subFrequency *= freqFactor;
+            }
+        }
     }
 
     oldNumOsc = numOSC;
     buffer->applyGain(masterGain * 0.5f);
 }
 
-void MainComponent::releaseResources() { }
+void MainComponent::releaseResources() {}
 
 void MainComponent::paint(Graphics& g) { g.fillAll(getLookAndFeel().findColour(ResizableWindow::backgroundColourId)); }
 
