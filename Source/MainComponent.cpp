@@ -61,7 +61,8 @@ MainComponent::MainComponent()
                         {
                             auto msg = PerformanceMessage {};
                             std::memcpy(&msg.index, buffer + 1, sizeof(PerformanceMessage::index));
-
+                            DBG("UDP Thread:");
+                            DBG(msg.index);
                             queue.enqueue(msg.index);
 
                             break;
@@ -74,17 +75,20 @@ MainComponent::MainComponent()
                                 systemIsInInitMode.store(true);
                                 listOfFrequencies.fill(0.f);
                             }
-
-                            if (initCyclesCounter + 2 > numFrequenciesReceived)  // 2 Toleranz
-                            {
-                                DBG("Initialisation Failed - not enough frequencies received");
-                                initCyclesCounter = 0;
-                                break;
-                            }
-
+                            /*
+                                                        if (initCyclesCounter + 2 > numFrequenciesReceived)  // 2
+                               Toleranz
+                                                        {
+                                                            DBG("Initialisation Failed - not enough frequencies
+                               received"); initCyclesCounter = 0; break;
+                                                        }
+                            */
                             auto msg = InitialisationMessage {};
                             std::memcpy(&msg.index, buffer + 1, sizeof(InitialisationMessage::index));
                             std::memcpy(&msg.frequency, buffer + 3, sizeof(InitialisationMessage::frequency));
+
+                            DBG(msg.index);
+                            DBG(msg.frequency);
 
                             if (msg.frequency == 0) { numFrequenciesReceived = msg.index; }
                             else
@@ -94,7 +98,7 @@ MainComponent::MainComponent()
 
                             initCyclesCounter++;
 
-                            if (initCyclesCounter == numFrequenciesReceived)
+                            if (initCyclesCounter == numFrequenciesReceived + 1)  // 1 Offset for Initmessage
                             {
                                 systemIsInInitMode = false;
                                 DBG("Initialisation Done");
@@ -223,22 +227,25 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     spikingFrequencies.fill(-1);
 
     int udpReadIndex = 0;
+
+    while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
+    {
+        queue.try_dequeue(spikingFrequencies[udpReadIndex]);
+
+        udpReadIndex++;
+    }
     /*
-        while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
-        {
-            queue.try_dequeue(spikingFrequencies[udpReadIndex]);
+      int numCycles = fmod(rand(), maxIndexToReadUdpMessage);
 
-            udpReadIndex++;
-        }
-     */
-    int numCycles = fmod(rand(), maxIndexToReadUdpMessage);
+      for (int i = 0; i < numCycles; i++) { spikingFrequencies[i] = fmod(rand(), 20000); }
 
-    for (int i = 0; i < numCycles; i++) { spikingFrequencies[i] = fmod(rand(), 20000); }
-
+   */
     for (auto& f : spikingFrequencies)
     {
         if (f == -1) { break; }
         env.trigger(f);
+        DBG("Audio Thread:");
+        DBG(f);
     }
 
     // If the number of oscillators changed, delete old phases & envelope gains
