@@ -215,7 +215,7 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
 
     // get Slider values
     float masterGain    = amplitudeSlider.getValue();
-    int numOSC          = static_cast<int>(oscSlider.getValue());
+    int numOSC          = numFrequenciesReceived;//static_cast<int>(oscSlider.getValue());
     float webDensity    = webSlider.getValue();
     float highFrequency = highcutSlider.getValue();
     float subFrequency  = std::floor(frequencySlider.getValue());
@@ -276,22 +276,22 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
                 for (int channel = 0; channel < 2; channel++)
                 { buffer->addSample(channel, sample, waveTable[phaseVector[i]] * env.getGain(i)); }
 
-                updateFrequency(subFrequency, i);
+                updateFrequency(listOfFrequencies[i], i);
             }
         }
 
         // Calculating next frequency
-        if (algoButton.getToggleState())
-        {
-            float add = (webDensity - 1.f) * 50.f;
-            subFrequency += add;
-        }
-        else
-        {
-            float freqStep   = 19980.f / static_cast<float>(numOSC);
-            float freqFactor = 19980.f / (19980.f - freqStep) * webDensity;
-            subFrequency *= freqFactor;
-        }
+//        if (algoButton.getToggleState())
+//        {
+//            float add = (webDensity - 1.f) * 50.f;
+//            subFrequency += add;
+//        }
+//        else
+//        {
+//            float freqStep   = 19980.f / static_cast<float>(numOSC);
+//            float freqFactor = 19980.f / (19980.f - freqStep) * webDensity;
+//            subFrequency *= freqFactor;
+//        }
     }
 
     oldNumOsc = numOSC;
