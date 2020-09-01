@@ -145,7 +145,7 @@ MainComponent::MainComponent()
     amplitudeSlider.setRange(0.0, 1.0);
     addAndMakeVisible(amplitudeSlider);
 
-    attackSlider.setRange(1.0000001f, 1.01f);
+    attackSlider.setRange(0.5f, 2.f);
     addAndMakeVisible(attackSlider);
 
     decaySlider.setRange(0.999f, 0.99999f);
@@ -221,7 +221,7 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     float highFrequency = highcutSlider.getValue();
     float subFrequency  = std::floor(frequencySlider.getValue());
     env.defaultGain     = noiseGainSlider.getValue();
-    env.attackFactor    = attackSlider.getValue();
+    env.addGain         = attackSlider.getValue();
     env.decayFactor     = decaySlider.getValue();
 
     // UDP Receive
