@@ -15,7 +15,7 @@ enum class MessageType : uint8_t
 {
     Performance = 0,
     Initialisation,
-    InitialisationDone,
+    InitialisationContent,
     Unknown,
 };
 struct PerformanceMessage
@@ -28,16 +28,15 @@ static_assert(sizeof(PerformanceMessage) == 4, "");
 struct InitialisationMessage
 {
     MessageType type;
-    uint16_t index;
-    float frequency;
+    uint16_t numFrequencies;
+    uint16_t packetSize;
 };
-static_assert(sizeof(InitialisationMessage) == 8, "");
 
-struct InitialisationDoneMessage
+struct InitialisationContentMessage
 {
     MessageType type;
+    float frequency;
 };
-static_assert(sizeof(InitialisationDoneMessage) == 1, "");
 
 class ExponentialDecay
 {
@@ -46,32 +45,37 @@ public:
 
     void reset() { gains.fill(defaultGain); }
 
-    void trigger(int index) { gains[index] = defaultGain - 0.1; }
+    void trigger(int index)
+    {
+        gains[index] += addGain;
+
+        if (gains[index] > gainLimit)
+        {
+            gains[index] = gainLimit;
+            DBG("Neuron peaked");
+        }
+    }
 
     void tick(int index)
     {
         float g = gains[index];
 
-        if (g < defaultGain && g > -maxGain)  //
-        { g *= attackFactor; }
-        if (g < (-maxGain))  //
-        { g = -g; }
-        if (g > defaultGain + 0.1f)  //
+        if (g > defaultGain + 0.01f)  //
         { g *= decayFactor; }
-        if (g < defaultGain + 0.1f && g > defaultGain)  //
+        if (g < defaultGain + 0.01f && g > defaultGain)  //
         { g = defaultGain; }
 
         gains[index] = g;
     }
 
-    float getGain(int index) { return abs(gains[index]); }
+    float getGain(int index) { return gains[index]; }
 
     float defaultGain {0.f};
-    float attackFactor {1.001f};
+    float addGain {1.3f};
     float decayFactor {0.99996f};
 
 private:
-    float maxGain {2.f};
+    float gainLimit {12.f};
     std::array<float, 20000> gains {};
 };
 
@@ -113,7 +117,7 @@ private:
     ExponentialDecay env {};
 
     std::array<float, 10000> envelopeValues {};
-    std::array<float, 20000> listOfFrequencies {};
+    std::vector<float> listOfFrequencies {20000};
 
     juce::Slider frequencySlider;
     juce::Label frequencyLabel;
@@ -139,7 +143,8 @@ private:
 
     std::thread udpThread;
     std::atomic<bool> systemIsInInitMode {};
-    int numFrequenciesReceived;
+    uint16_t numFrequenciesReceived;
+    uint16_t packetSize;
 
     std::array<int, 512> spikingFrequencies {};
 

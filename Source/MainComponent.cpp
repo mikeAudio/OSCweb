@@ -2,49 +2,20 @@
 #include "MainComponent.h"
 
 #include <cstdint>
-namespace mc
-{
-namespace net
-{
-template<class T>
-constexpr auto ntoh(T) -> T = delete;
-constexpr auto ntoh(char v) noexcept -> char { return v; }
-constexpr auto ntoh(uint8_t v) noexcept -> uint8_t { return v; }
-constexpr auto ntoh(int8_t v) noexcept -> int8_t { return v; }
-constexpr auto ntoh(uint16_t v) noexcept -> uint16_t
-{
-    return uint16_t(v << uint16_t {8}) | uint16_t(v >> uint16_t {8});
-}
-constexpr auto ntoh(uint32_t v) noexcept -> uint32_t
-{
-    auto const a = v << 24;
-    auto const b = (v & 0x0000FF00) << 8;
-    auto const c = (v & 0x00FF0000) >> 8;
-    auto const d = v >> 24;
-    return a | b | c | d;
-}
-template<class T>
-constexpr auto hton(T) -> T = delete;
-constexpr auto hton(char v) noexcept -> char { return v; }
-constexpr auto hton(int8_t v) noexcept -> int8_t { return v; }
-constexpr auto hton(uint8_t v) noexcept -> uint8_t { return v; }
-constexpr auto hton(uint16_t v) noexcept -> uint16_t { return ntoh(v); }
-constexpr auto hton(uint32_t v) noexcept -> uint32_t { return ntoh(v); }
-}  // namespace net
-}  // namespace mc
 
 MainComponent::MainComponent()
     : udpThread([this]() {
         udp.bindToPort(portNumber, "0.0.0.0");
 
+        DBG("UDP Thread waiting for connection");
+
         auto status = udp.waitUntilReady(true, 30000);
 
-        if (status <= 0) { DBG("Error connecting to UDP Port"); }
+        if (status == 0) { DBG("Connection Time Out"); }
+        if (status == -1) { DBG("Error connecting to UDP Port"); }
 
         if (status == 1)
         {
-            int initCyclesCounter = 0;
-
             while (true)
             {
                 uint8_t buffer[8]   = {};
@@ -70,42 +41,52 @@ MainComponent::MainComponent()
 
                         case MessageType::Initialisation:
                         {
-                            if (initCyclesCounter == 0)
-                            {
-                                systemIsInInitMode.store(true);
-                                listOfFrequencies.fill(0.f);
-                            }
-                            /*
-                                                        if (initCyclesCounter + 2 > numFrequenciesReceived)  // 2
-                               Toleranz
-                                                        {
-                                                            DBG("Initialisation Failed - not enough frequencies
-                               received"); initCyclesCounter = 0; break;
-                                                        }
-                            */
-                            auto msg = InitialisationMessage {};
-                            std::memcpy(&msg.index, buffer + 1, sizeof(InitialisationMessage::index));
-                            std::memcpy(&msg.frequency, buffer + 3, sizeof(InitialisationMessage::frequency));
+                            systemIsInInitMode.store(true);
+                            listOfFrequencies.clear();
 
-                            DBG(msg.index);
-                            DBG(msg.frequency);
+                            std::memcpy(&numFrequenciesReceived, buffer + 1, 2);
+                            std::memcpy(&packetSize, buffer + 3, 2);
 
-                            if (msg.frequency == 0) { numFrequenciesReceived = msg.index; }
-                            else
-                            {
-                                listOfFrequencies[msg.index] = msg.frequency;
-                            }
-
-                            initCyclesCounter++;
-
-                            if (initCyclesCounter == numFrequenciesReceived + 1)  // 1 Offset for Initmessage
-                            {
-                                systemIsInInitMode = false;
-                                DBG("Initialisation Done");
-                                initCyclesCounter = 0;
-                            }
-
+                            DBG("Initialisation Begin");
                             break;
+                        }
+
+                        case MessageType::InitialisationContent:
+                        {
+                            auto msg = InitialisationContentMessage {};
+
+                            for (int i = 1; i < packetSize; i = i + 4)
+                            {
+                                std::memcpy(&msg.frequency, buffer + i, 4);
+
+                                if (msg.frequency == 0)
+                                {
+                                    DBG("Initialisation Succesfull - 0 reached");
+                                    systemIsInInitMode.store(false);
+                                    break;
+                                }
+
+                                listOfFrequencies.push_back(msg.frequency);
+                                DBG(msg.frequency);
+                            }
+
+                            if (listOfFrequencies.size() == numFrequenciesReceived)
+                            {
+                                DBG("Initialisation Succesfull - vector filled");
+                                systemIsInInitMode.store(false);
+                                break;
+                            }
+
+                            if (listOfFrequencies.size() > numFrequenciesReceived)
+                            {
+                                DBG("Initialisation Overload");
+                                break;
+                            }
+                            if (listOfFrequencies.size() < numFrequenciesReceived)
+                            {
+                                DBG("packet done, waiting for next one");
+                                break;
+                            }
                         }
 
                         default: jassertfalse; break;
@@ -214,38 +195,55 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     buffer->clear();
 
     // get Slider values
+    bool udpMode        = triggerFreqButton.getToggleState();
     float masterGain    = amplitudeSlider.getValue();
-    int numOSC          = numFrequenciesReceived;//static_cast<int>(oscSlider.getValue());
+    int numOSC          = udpMode ? numFrequenciesReceived : static_cast<int>(oscSlider.getValue());
     float webDensity    = webSlider.getValue();
     float highFrequency = highcutSlider.getValue();
     float subFrequency  = std::floor(frequencySlider.getValue());
     env.defaultGain     = noiseGainSlider.getValue();
-    env.attackFactor    = attackSlider.getValue();
+    env.addGain         = attackSlider.getValue();
     env.decayFactor     = decaySlider.getValue();
 
     // UDP Receive
     spikingFrequencies.fill(-1);
 
-    int udpReadIndex = 0;
-
-    while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
+    if (udpMode)
     {
-        queue.try_dequeue(spikingFrequencies[udpReadIndex]);
 
-        udpReadIndex++;
+        int udpReadIndex = 0;
+
+        while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
+        {
+            queue.try_dequeue(spikingFrequencies[udpReadIndex]);
+
+            udpReadIndex++;
+        }
     }
-    /*
-      int numCycles = fmod(rand(), maxIndexToReadUdpMessage);
-
-      for (int i = 0; i < numCycles; i++) { spikingFrequencies[i] = fmod(rand(), 20000); }
-
-   */
-    for (auto& f : spikingFrequencies)
+    else
     {
-        if (f == -1) { break; }
-        env.trigger(f);
-        DBG("Audio Thread:");
-        DBG(f);
+
+        int numCycles    = fmod(rand(), maxIndexToReadUdpMessage);
+        int rndmIndex    = -1;
+        int indexCounter = 0;
+
+        for (int i = 0; i < numCycles; i++)
+        {
+            rndmIndex = fmod(rand(), 20000);
+
+            if (rndmIndex < numOSC)
+            {
+                spikingFrequencies[indexCounter] = rndmIndex;
+
+                indexCounter++;
+            }
+        }
+
+        for (auto& f : spikingFrequencies)
+        {
+            if (f == -1) { break; }
+            env.trigger(f);
+        }
     }
 
     // If the number of oscillators changed, delete old phases & envelope gains
@@ -276,22 +274,28 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
                 for (int channel = 0; channel < 2; channel++)
                 { buffer->addSample(channel, sample, waveTable[phaseVector[i]] * env.getGain(i)); }
 
-                updateFrequency(listOfFrequencies[i], i);
+                if (udpMode) { updateFrequency(listOfFrequencies[i], i); }
+                else
+                {
+                    updateFrequency(subFrequency, i);
+                }
             }
         }
-
-        // Calculating next frequency
-//        if (algoButton.getToggleState())
-//        {
-//            float add = (webDensity - 1.f) * 50.f;
-//            subFrequency += add;
-//        }
-//        else
-//        {
-//            float freqStep   = 19980.f / static_cast<float>(numOSC);
-//            float freqFactor = 19980.f / (19980.f - freqStep) * webDensity;
-//            subFrequency *= freqFactor;
-//        }
+        if (!udpMode)
+        {
+            // Calculating next frequency
+            if (algoButton.getToggleState())
+            {
+                float add = (webDensity - 1.f) * 50.f;
+                subFrequency += add;
+            }
+            else
+            {
+                float freqStep   = 19980.f / static_cast<float>(numOSC);
+                float freqFactor = 19980.f / (19980.f - freqStep) * webDensity;
+                subFrequency *= freqFactor;
+            }
+        }
     }
 
     oldNumOsc = numOSC;
