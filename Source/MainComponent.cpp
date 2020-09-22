@@ -4,8 +4,12 @@
 #include <cstdint>
 
 MainComponent::MainComponent()
-    : udpThread([this]() {
+    : udpThread([this]()
+    {
         udp.bindToPort(portNumber, "0.0.0.0");
+        
+        DBG("UDP waiting for connection");
+
 
         DBG("UDP Thread waiting for connection");
 
@@ -16,9 +20,10 @@ MainComponent::MainComponent()
 
         if (status == 1)
         {
+
             while (true)
             {
-                uint8_t buffer[8]   = {};
+                uint8_t buffer[]    = {};
                 auto const numBytes = udp.read(static_cast<void*>(buffer), sizeof(buffer), false);
 
                 if (numBytes > 0)
@@ -32,8 +37,7 @@ MainComponent::MainComponent()
                         {
                             auto msg = PerformanceMessage {};
                             std::memcpy(&msg.index, buffer + 1, sizeof(PerformanceMessage::index));
-                            DBG("UDP Thread:");
-                            DBG(msg.index);
+
                             queue.enqueue(msg.index);
 
                             break;
@@ -87,6 +91,7 @@ MainComponent::MainComponent()
                                 DBG("packet done, waiting for next one");
                                 break;
                             }
+
                         }
 
                         default: jassertfalse; break;
@@ -95,6 +100,7 @@ MainComponent::MainComponent()
             }
         }
     })
+
 {
     setSize(800, 600);
 
@@ -126,7 +132,7 @@ MainComponent::MainComponent()
     amplitudeSlider.setRange(0.0, 1.0);
     addAndMakeVisible(amplitudeSlider);
 
-    attackSlider.setRange(1.0000001f, 1.01f);
+    attackSlider.setRange(0.5f, 2.f);
     addAndMakeVisible(attackSlider);
 
     decaySlider.setRange(0.999f, 0.99999f);
@@ -135,7 +141,7 @@ MainComponent::MainComponent()
     noiseGainSlider.setRange(0.f, 1.f);
     addAndMakeVisible(noiseGainSlider);
 
-    oscSlider.setRange(1.0, maxNumOsc);
+    oscSlider.setRange(1, maxNumOsc);
     oscSlider.setSkewFactorFromMidPoint(2000);
     addAndMakeVisible(oscSlider);
 
@@ -147,7 +153,7 @@ MainComponent::MainComponent()
     algoButton.setClickingTogglesState(true);
     addAndMakeVisible(algoButton);
 
-    triggerFreqButton.setButtonText("Trigger Frequency");
+    triggerFreqButton.setButtonText("Activate UDP");
     triggerFreqButton.setClickingTogglesState(true);
     addAndMakeVisible(triggerFreqButton);
 

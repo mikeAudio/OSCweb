@@ -13,7 +13,7 @@
 */
 enum class MessageType : uint8_t
 {
-    Performance = 0,
+    Performance,
     Initialisation,
     InitialisationContent,
     Unknown,
@@ -28,6 +28,7 @@ static_assert(sizeof(PerformanceMessage) == 4, "");
 struct InitialisationMessage
 {
     MessageType type;
+
     uint16_t numFrequencies;
     uint16_t packetSize;
 };
@@ -137,16 +138,21 @@ private:
     moodycamel::ReaderWriterQueue<int> queue {200};
     const int maxIndexToReadUdpMessage = 50;
 
+    std::thread udpThread;
     juce::DatagramSocket udp {};
-    constexpr static int portNumber = 4001;
+    juce::StreamingSocket tcp {};
+    constexpr static int portNumber = 40002;
     std::atomic<bool> doneFlag {false};
 
-    std::thread udpThread;
     std::atomic<bool> systemIsInInitMode {};
     uint16_t numFrequenciesReceived;
     uint16_t packetSize;
 
     std::array<int, 512> spikingFrequencies {};
+
+    void readSmallInitialisation() { }
+
+    void readBigInitialisation() { }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
