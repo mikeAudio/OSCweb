@@ -139,8 +139,7 @@ private:
 
     std::thread udpThread;
     juce::DatagramSocket udp {};
-    juce::StreamingSocket tcp {};
-    constexpr static int portNumber = 40002;
+    constexpr static int portNumber = 5001;
     std::atomic<bool> doneFlag {false};
 
     std::atomic<bool> systemIsInInitMode {};

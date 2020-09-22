@@ -40,9 +40,11 @@ MainComponent::MainComponent()
     {
         udp.bindToPort(portNumber, "0.0.0.0");
         
-        DBG("UDP waiting for connection");
+        //while(true){
 
-        auto status = udp.waitUntilReady(true, -1);
+        DBG("UDP waiting for connection");
+            
+        auto status = udp.waitUntilReady(true, 3000);
 
         if (status == 0) { DBG("Connection Time Out"); }
         if (status == -1) { DBG("Error connecting to Port"); }
@@ -53,7 +55,7 @@ MainComponent::MainComponent()
             
             while (true)
             {
-                uint8_t buffer[]    = {};
+                uint8_t buffer[10000]    = {};
                 auto const numBytes = udp.read(static_cast<void*>(buffer), sizeof(buffer), false);
 
                 if (numBytes > 0)
@@ -83,6 +85,11 @@ MainComponent::MainComponent()
                             std::memcpy(&packetSize, buffer + 3, 2);
 
                             DBG("Initialisation Begin");
+                            DBG("Fequencies Expected:");
+                            DBG(numFrequenciesReceived);
+                            DBG("Packet Size:");
+                            DBG(packetSize);
+                            
                             break;
                         }
 
@@ -128,6 +135,7 @@ MainComponent::MainComponent()
                 }
             }
         }
+        
     })
 
 {
