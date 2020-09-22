@@ -2,6 +2,7 @@
 #include "MainComponent.h"
 
 #include <cstdint>
+/*
 namespace mc
 {
 namespace net
@@ -32,22 +33,27 @@ constexpr auto hton(uint16_t v) noexcept -> uint16_t { return ntoh(v); }
 constexpr auto hton(uint32_t v) noexcept -> uint32_t { return ntoh(v); }
 }  // namespace net
 }  // namespace mc
+ */
 
 MainComponent::MainComponent()
-    : udpThread([this]() {
+    : udpThread([this]()
+    {
         udp.bindToPort(portNumber, "0.0.0.0");
+        
+        DBG("UDP waiting for connection");
 
-        auto status = udp.waitUntilReady(true, 30000);
+        auto status = udp.waitUntilReady(true, -1);
 
-        if (status <= 0) { DBG("Error connecting to UDP Port"); }
+        if (status == 0) { DBG("Connection Time Out"); }
+        if (status == -1) { DBG("Error connecting to Port"); }
 
         if (status == 1)
         {
-            int initCyclesCounter = 0;
-
+            DBG("Connected");
+            
             while (true)
             {
-                uint8_t buffer[8]   = {};
+                uint8_t buffer[]    = {};
                 auto const numBytes = udp.read(static_cast<void*>(buffer), sizeof(buffer), false);
 
                 if (numBytes > 0)
@@ -61,8 +67,7 @@ MainComponent::MainComponent()
                         {
                             auto msg = PerformanceMessage {};
                             std::memcpy(&msg.index, buffer + 1, sizeof(PerformanceMessage::index));
-                            DBG("UDP Thread:");
-                            DBG(msg.index);
+
                             queue.enqueue(msg.index);
 
                             break;
@@ -70,42 +75,52 @@ MainComponent::MainComponent()
 
                         case MessageType::Initialisation:
                         {
-                            if (initCyclesCounter == 0)
-                            {
-                                systemIsInInitMode.store(true);
-                                listOfFrequencies.fill(0.f);
-                            }
-                            /*
-                                                        if (initCyclesCounter + 2 > numFrequenciesReceived)  // 2
-                               Toleranz
-                                                        {
-                                                            DBG("Initialisation Failed - not enough frequencies
-                               received"); initCyclesCounter = 0; break;
-                                                        }
-                            */
-                            auto msg = InitialisationMessage {};
-                            std::memcpy(&msg.index, buffer + 1, sizeof(InitialisationMessage::index));
-                            std::memcpy(&msg.frequency, buffer + 3, sizeof(InitialisationMessage::frequency));
 
-                            DBG(msg.index);
-                            DBG(msg.frequency);
+                            systemIsInInitMode.store(true);
+                            listOfFrequencies.clear();
 
-                            if (msg.frequency == 0) { numFrequenciesReceived = msg.index; }
-                            else
-                            {
-                                listOfFrequencies[msg.index] = msg.frequency;
-                            }
+                            std::memcpy(&numFrequenciesReceived, buffer + 1, 2);
+                            std::memcpy(&packetSize, buffer + 3, 2);
 
-                            initCyclesCounter++;
-
-                            if (initCyclesCounter == numFrequenciesReceived + 1)  // 1 Offset for Initmessage
-                            {
-                                systemIsInInitMode = false;
-                                DBG("Initialisation Done");
-                                initCyclesCounter = 0;
-                            }
-
+                            DBG("Initialisation Begin");
                             break;
+                        }
+
+                        case MessageType::InitialisationContent:
+                        {
+                            auto msg = InitialisationContentMessage {};
+
+                            for (int i = 1; i < packetSize; i = i + 4)
+                            {
+                                std::memcpy(&msg.frequency, buffer + i, 4);
+                                
+                                if(msg.frequency == 0)
+                                {
+                                    DBG("Initialisation Succesfull - 0 reached");
+                                    break;
+                                }
+                                
+                                listOfFrequencies.push_back(msg.frequency);
+                                DBG(msg.frequency);
+                            }
+                            
+                            if(listOfFrequencies.size() == numFrequenciesReceived)
+                            {
+                                DBG("Initialisation Succesfull - filled vector");
+                                break;
+                            }
+
+
+                            if (listOfFrequencies.size() > numFrequenciesReceived)
+                            {
+                                DBG("Initialisation Overload");
+                                break;
+                            }
+                            if (listOfFrequencies.size() < numFrequenciesReceived)
+                            {
+                                DBG("packet done, waiting for next one");
+                                break;
+                            }
                         }
 
                         default: jassertfalse; break;
@@ -114,6 +129,7 @@ MainComponent::MainComponent()
             }
         }
     })
+
 {
     setSize(800, 600);
 
@@ -154,7 +170,7 @@ MainComponent::MainComponent()
     noiseGainSlider.setRange(0.f, 1.f);
     addAndMakeVisible(noiseGainSlider);
 
-    oscSlider.setRange(1.0, maxNumOsc);
+    oscSlider.setRange(1, maxNumOsc);
     oscSlider.setSkewFactorFromMidPoint(2000);
     addAndMakeVisible(oscSlider);
 
@@ -242,16 +258,26 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     else
     {
 
-        int numCycles = fmod(rand(), maxIndexToReadUdpMessage);
+        int numCycles    = fmod(rand(), maxIndexToReadUdpMessage);
+        int rndmIndex    = -1;
+        int indexCounter = 0;
 
-        for (int i = 0; i < numCycles; i++) { spikingFrequencies[i] = fmod(rand(), 20000); }
+        for (int i = 0; i < numCycles; i++)
+        {
+            rndmIndex = fmod(rand(), 20000);
+
+            if (rndmIndex < numOSC)
+            {
+                spikingFrequencies[indexCounter] = rndmIndex;
+
+                indexCounter++;
+            }
+        }
 
         for (auto& f : spikingFrequencies)
         {
             if (f == -1) { break; }
             env.trigger(f);
-            // DBG("Audio Thread:");
-            // DBG(f);
         }
     }
 
@@ -311,7 +337,7 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     buffer->applyGain(masterGain * 0.5f);
 }
 
-void MainComponent::releaseResources() {}
+void MainComponent::releaseResources() { }
 
 void MainComponent::paint(Graphics& g) { g.fillAll(getLookAndFeel().findColour(ResizableWindow::backgroundColourId)); }
 

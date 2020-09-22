@@ -13,9 +13,9 @@
 */
 enum class MessageType : uint8_t
 {
-    Performance = 0,
+    Performance,
     Initialisation,
-    InitialisationDone,
+    InitialisationContent,
     Unknown,
 };
 struct PerformanceMessage
@@ -29,15 +29,14 @@ struct InitialisationMessage
 {
     MessageType type;
     uint16_t index;
-    float frequency;
+    uint16_t packetSize;
 };
-static_assert(sizeof(InitialisationMessage) == 8, "");
 
-struct InitialisationDoneMessage
+struct InitialisationContentMessage
 {
     MessageType type;
+    float frequency;
 };
-static_assert(sizeof(InitialisationDoneMessage) == 1, "");
 
 class ExponentialDecay
 {
@@ -49,7 +48,7 @@ public:
     void trigger(int index)
     {
         gains[index] += addGain;
-        
+
         if (gains[index] > gainLimit)
         {
             gains[index] = gainLimit;
@@ -60,7 +59,7 @@ public:
     void tick(int index)
     {
         float g = gains[index];
-    
+
         if (g > defaultGain + 0.01f)  //
         { g *= decayFactor; }
         if (g < defaultGain + 0.01f && g > defaultGain)  //
@@ -76,7 +75,6 @@ public:
     float decayFactor {0.99996f};
 
 private:
-    
     float gainLimit {12.f};
     std::array<float, 20000> gains {};
 };
@@ -119,7 +117,7 @@ private:
     ExponentialDecay env {};
 
     std::array<float, 10000> envelopeValues {};
-    std::array<float, 20000> listOfFrequencies {};
+    std::vector<float> listOfFrequencies {20000};
 
     juce::Slider frequencySlider;
     juce::Label frequencyLabel;
@@ -139,15 +137,21 @@ private:
     moodycamel::ReaderWriterQueue<int> queue {200};
     const int maxIndexToReadUdpMessage = 50;
 
+    std::thread udpThread;
     juce::DatagramSocket udp {};
-    constexpr static int portNumber = 4001;
+    juce::StreamingSocket tcp {};
+    constexpr static int portNumber = 40002;
     std::atomic<bool> doneFlag {false};
 
-    std::thread udpThread;
     std::atomic<bool> systemIsInInitMode {};
-    int numFrequenciesReceived;
+    uint16_t numFrequenciesReceived;
+    uint16_t packetSize;
 
     std::array<int, 512> spikingFrequencies {};
+
+    void readSmallInitialisation() { }
+
+    void readBigInitialisation() { }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
