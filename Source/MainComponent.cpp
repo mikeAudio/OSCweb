@@ -9,7 +9,7 @@ MainComponent::MainComponent()
 
         DBG("UDP Thread waiting for connection");
 
-        auto status = udp.waitUntilReady(true, 30000);
+        auto status = udp.waitUntilReady(true, -1);
 
         if (status == 0) { DBG("Connection Time Out"); }
         if (status == -1) { DBG("Error connecting to UDP Port"); }
@@ -18,7 +18,7 @@ MainComponent::MainComponent()
         {
             while (true)
             {
-                uint8_t buffer[8]   = {};
+                uint8_t buffer[5000]   = {};
                 auto const numBytes = udp.read(static_cast<void*>(buffer), sizeof(buffer), false);
 
                 if (numBytes > 0)
@@ -32,8 +32,8 @@ MainComponent::MainComponent()
                         {
                             auto msg = PerformanceMessage {};
                             std::memcpy(&msg.index, buffer + 1, sizeof(PerformanceMessage::index));
-                            DBG("UDP Thread:");
-                            DBG(msg.index);
+                            //DBG("UDP Thread:");
+                            //DBG(msg.index);
                             queue.enqueue(msg.index);
 
                             break;
@@ -45,9 +45,12 @@ MainComponent::MainComponent()
                             listOfFrequencies.clear();
 
                             std::memcpy(&numFrequenciesReceived, buffer + 1, 2);
-                            std::memcpy(&packetSize, buffer + 3, 2);
+                            std::memcpy(&chunkSize, buffer + 3, 2);
 
-                            DBG("Initialisation Begin");
+                            DBG("Initialisation Begin.\nNum Neurons:");
+                            DBG(numFrequenciesReceived);
+                            DBG("chunk Size:");
+                            DBG(chunkSize);
                             break;
                         }
 
@@ -55,7 +58,7 @@ MainComponent::MainComponent()
                         {
                             auto msg = InitialisationContentMessage {};
 
-                            for (int i = 1; i < packetSize; i = i + 4)
+                            for (int i = 1; i < chunkSize * 4; i = i + 4)
                             {
                                 std::memcpy(&msg.frequency, buffer + i, 4);
 
@@ -84,7 +87,8 @@ MainComponent::MainComponent()
                             }
                             if (listOfFrequencies.size() < numFrequenciesReceived)
                             {
-                                DBG("packet done, waiting for next one");
+                                DBG("chunk done, waiting for next one");
+                                DBG(listOfFrequencies.size());
                                 break;
                             }
                         }
@@ -147,9 +151,9 @@ MainComponent::MainComponent()
     algoButton.setClickingTogglesState(true);
     addAndMakeVisible(algoButton);
 
-    triggerFreqButton.setButtonText("Trigger Frequency");
-    triggerFreqButton.setClickingTogglesState(true);
-    addAndMakeVisible(triggerFreqButton);
+    udpModeButton.setButtonText("Activate UDP as Source");
+    udpModeButton.setClickingTogglesState(true);
+    addAndMakeVisible(udpModeButton);
 
     portNumberEditor.setMultiLine(false);
     portNumberEditor.setEscapeAndReturnKeysConsumed(true);
@@ -195,7 +199,7 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     buffer->clear();
 
     // get Slider values
-    bool udpMode        = triggerFreqButton.getToggleState();
+    bool udpMode        = udpModeButton.getToggleState();
     float masterGain    = amplitudeSlider.getValue();
     int numOSC          = udpMode ? numFrequenciesReceived : static_cast<int>(oscSlider.getValue());
     float webDensity    = webSlider.getValue();
@@ -210,7 +214,6 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
 
     if (udpMode)
     {
-
         int udpReadIndex = 0;
 
         while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
@@ -222,8 +225,7 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     }
     else
     {
-
-        int numCycles    = fmod(rand(), maxIndexToReadUdpMessage);
+        int numCycles    = fmod(rand(), 10000);
         int rndmIndex    = -1;
         int indexCounter = 0;
 
@@ -238,12 +240,12 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
                 indexCounter++;
             }
         }
-
-        for (auto& f : spikingFrequencies)
-        {
-            if (f == -1) { break; }
-            env.trigger(f);
-        }
+    }
+    
+    for (auto& f : spikingFrequencies)
+    {
+        if (f == -1) { break; }
+        env.trigger(f);
     }
 
     // If the number of oscillators changed, delete old phases & envelope gains
@@ -325,5 +327,5 @@ void MainComponent::resized()
 
     portNumberEditor.setBounds(0, heightForth * 4 + heightForth / 2, halfWidth, heightForth / 2);
     algoButton.setBounds(halfWidth, heightForth * 4, halfWidth, heightForth / 2);
-    triggerFreqButton.setBounds(halfWidth, heightForth * 4 + heightForth / 2, halfWidth, heightForth / 2);
+    udpModeButton.setBounds(halfWidth, heightForth * 4 + heightForth / 2, halfWidth, heightForth / 2);
 }

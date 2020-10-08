@@ -29,7 +29,7 @@ struct InitialisationMessage
 {
     MessageType type;
     uint16_t numFrequencies;
-    uint16_t packetSize;
+    uint16_t chunkSize;
 };
 
 struct InitialisationContentMessage
@@ -129,13 +129,13 @@ private:
     juce::Slider decaySlider;
     juce::Slider noiseGainSlider;
     juce::TextButton algoButton;
-    juce::TextButton triggerFreqButton;
+    juce::TextButton udpModeButton;
     juce::TextEditor portNumberEditor;
 
     bool oldToggleState = false;
 
     moodycamel::ReaderWriterQueue<int> queue {200};
-    const int maxIndexToReadUdpMessage = 50;
+    const int maxIndexToReadUdpMessage = 1;
 
     juce::DatagramSocket udp {};
     constexpr static int portNumber = 4001;
@@ -144,9 +144,9 @@ private:
     std::thread udpThread;
     std::atomic<bool> systemIsInInitMode {};
     uint16_t numFrequenciesReceived;
-    uint16_t packetSize;
+    uint16_t chunkSize;
 
-    std::array<int, 512> spikingFrequencies {};
+    std::array<int, 10000> spikingFrequencies {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
