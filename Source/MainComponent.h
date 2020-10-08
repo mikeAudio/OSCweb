@@ -28,8 +28,8 @@ static_assert(sizeof(PerformanceMessage) == 4, "");
 struct InitialisationMessage
 {
     MessageType type;
-    uint16_t index;
-    uint16_t packetSize;
+    uint16_t numFrequencies;
+    uint16_t chunkSize;
 };
 
 struct InitialisationContentMessage
@@ -129,13 +129,13 @@ private:
     juce::Slider decaySlider;
     juce::Slider noiseGainSlider;
     juce::TextButton algoButton;
-    juce::TextButton triggerFreqButton;
+    juce::TextButton udpModeButton;
     juce::TextEditor portNumberEditor;
 
     bool oldToggleState = false;
 
     moodycamel::ReaderWriterQueue<int> queue {200};
-    const int maxIndexToReadUdpMessage = 50;
+    const int maxIndexToReadUdpMessage = 1;
 
     std::thread udpThread;
     juce::DatagramSocket udp {};
@@ -144,9 +144,9 @@ private:
 
     std::atomic<bool> systemIsInInitMode {};
     uint16_t numFrequenciesReceived;
-    uint16_t packetSize;
+    uint16_t chunkSize;
 
-    std::array<int, 512> spikingFrequencies {};
+    std::array<int, 10000> spikingFrequencies {};
 
     void readSmallInitialisation() { }
 

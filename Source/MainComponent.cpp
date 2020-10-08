@@ -2,61 +2,26 @@
 #include "MainComponent.h"
 
 #include <cstdint>
-/*
-namespace mc
-{
-namespace net
-{
-template<class T>
-constexpr auto ntoh(T) -> T = delete;
-constexpr auto ntoh(char v) noexcept -> char { return v; }
-constexpr auto ntoh(uint8_t v) noexcept -> uint8_t { return v; }
-constexpr auto ntoh(int8_t v) noexcept -> int8_t { return v; }
-constexpr auto ntoh(uint16_t v) noexcept -> uint16_t
-{
-    return uint16_t(v << uint16_t {8}) | uint16_t(v >> uint16_t {8});
-}
-constexpr auto ntoh(uint32_t v) noexcept -> uint32_t
-{
-    auto const a = v << 24;
-    auto const b = (v & 0x0000FF00) << 8;
-    auto const c = (v & 0x00FF0000) >> 8;
-    auto const d = v >> 24;
-    return a | b | c | d;
-}
-template<class T>
-constexpr auto hton(T) -> T = delete;
-constexpr auto hton(char v) noexcept -> char { return v; }
-constexpr auto hton(int8_t v) noexcept -> int8_t { return v; }
-constexpr auto hton(uint8_t v) noexcept -> uint8_t { return v; }
-constexpr auto hton(uint16_t v) noexcept -> uint16_t { return ntoh(v); }
-constexpr auto hton(uint32_t v) noexcept -> uint32_t { return ntoh(v); }
-}  // namespace net
-}  // namespace mc
- */
 
 MainComponent::MainComponent()
-    : udpThread([this]()
-    {
+    : udpThread([this]() {
         udp.bindToPort(portNumber, "0.0.0.0");
-        
-        //while(true){
 
-        DBG("UDP waiting for connection");
-            
-        auto status = udp.waitUntilReady(true, 3000);
+        // while(true){
+
+        DBG("UDP Thread waiting for connection");
+
+        auto status = udp.waitUntilReady(true, -1);
 
         if (status == 0) { DBG("Connection Time Out"); }
-        if (status == -1) { DBG("Error connecting to Port"); }
+        if (status == -1) { DBG("Error connecting to UDP Port"); }
 
         if (status == 1)
         {
-            DBG("Connected");
-            
             while (true)
             {
-                uint8_t buffer[10000]    = {};
-                auto const numBytes = udp.read(static_cast<void*>(buffer), sizeof(buffer), false);
+                uint8_t buffer[5000] = {};
+                auto const numBytes  = udp.read(static_cast<void*>(buffer), sizeof(buffer), false);
 
                 if (numBytes > 0)
                 {
@@ -69,7 +34,8 @@ MainComponent::MainComponent()
                         {
                             auto msg = PerformanceMessage {};
                             std::memcpy(&msg.index, buffer + 1, sizeof(PerformanceMessage::index));
-
+                            // DBG("UDP Thread:");
+                            // DBG(msg.index);
                             queue.enqueue(msg.index);
 
                             break;
@@ -77,19 +43,16 @@ MainComponent::MainComponent()
 
                         case MessageType::Initialisation:
                         {
-
                             systemIsInInitMode.store(true);
                             listOfFrequencies.clear();
 
                             std::memcpy(&numFrequenciesReceived, buffer + 1, 2);
-                            std::memcpy(&packetSize, buffer + 3, 2);
+                            std::memcpy(&chunkSize, buffer + 3, 2);
 
-                            DBG("Initialisation Begin");
-                            DBG("Fequencies Expected:");
+                            DBG("Initialisation Begin.\nNum Neurons:");
                             DBG(numFrequenciesReceived);
-                            DBG("Packet Size:");
-                            DBG(packetSize);
-                            
+                            DBG("chunk Size:");
+                            DBG(chunkSize);
                             break;
                         }
 
@@ -97,26 +60,27 @@ MainComponent::MainComponent()
                         {
                             auto msg = InitialisationContentMessage {};
 
-                            for (int i = 1; i < packetSize; i = i + 4)
+                            for (int i = 1; i < chunkSize * 4; i = i + 4)
                             {
                                 std::memcpy(&msg.frequency, buffer + i, 4);
-                                
-                                if(msg.frequency == 0)
+
+                                if (msg.frequency == 0)
                                 {
                                     DBG("Initialisation Succesfull - 0 reached");
+                                    systemIsInInitMode.store(false);
                                     break;
                                 }
-                                
+
                                 listOfFrequencies.push_back(msg.frequency);
                                 DBG(msg.frequency);
                             }
-                            
-                            if(listOfFrequencies.size() == numFrequenciesReceived)
+
+                            if (listOfFrequencies.size() == numFrequenciesReceived)
                             {
-                                DBG("Initialisation Succesfull - filled vector");
+                                DBG("Initialisation Succesfull - vector filled");
+                                systemIsInInitMode.store(false);
                                 break;
                             }
-
 
                             if (listOfFrequencies.size() > numFrequenciesReceived)
                             {
@@ -125,7 +89,8 @@ MainComponent::MainComponent()
                             }
                             if (listOfFrequencies.size() < numFrequenciesReceived)
                             {
-                                DBG("packet done, waiting for next one");
+                                DBG("chunk done, waiting for next one");
+                                DBG(listOfFrequencies.size());
                                 break;
                             }
                         }
@@ -135,7 +100,6 @@ MainComponent::MainComponent()
                 }
             }
         }
-        
     })
 
 {
@@ -190,9 +154,9 @@ MainComponent::MainComponent()
     algoButton.setClickingTogglesState(true);
     addAndMakeVisible(algoButton);
 
-    triggerFreqButton.setButtonText("Activate UDP");
-    triggerFreqButton.setClickingTogglesState(true);
-    addAndMakeVisible(triggerFreqButton);
+    udpModeButton.setButtonText("Activate UDP as Source");
+    udpModeButton.setClickingTogglesState(true);
+    addAndMakeVisible(udpModeButton);
 
     portNumberEditor.setMultiLine(false);
     portNumberEditor.setEscapeAndReturnKeysConsumed(true);
@@ -238,7 +202,7 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     buffer->clear();
 
     // get Slider values
-    bool udpMode        = triggerFreqButton.getToggleState();
+    bool udpMode        = udpModeButton.getToggleState();
     float masterGain    = amplitudeSlider.getValue();
     int numOSC          = udpMode ? numFrequenciesReceived : static_cast<int>(oscSlider.getValue());
     float webDensity    = webSlider.getValue();
@@ -253,7 +217,6 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
 
     if (udpMode)
     {
-
         int udpReadIndex = 0;
 
         while (queue.peek() != nullptr && udpReadIndex < maxIndexToReadUdpMessage)
@@ -265,8 +228,7 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
     }
     else
     {
-
-        int numCycles    = fmod(rand(), maxIndexToReadUdpMessage);
+        int numCycles    = fmod(rand(), 10000);
         int rndmIndex    = -1;
         int indexCounter = 0;
 
@@ -281,12 +243,12 @@ void MainComponent::getNextAudioBlock(const AudioSourceChannelInfo& bufferToFill
                 indexCounter++;
             }
         }
+    }
 
-        for (auto& f : spikingFrequencies)
-        {
-            if (f == -1) { break; }
-            env.trigger(f);
-        }
+    for (auto& f : spikingFrequencies)
+    {
+        if (f == -1) { break; }
+        env.trigger(f);
     }
 
     // If the number of oscillators changed, delete old phases & envelope gains
@@ -368,5 +330,5 @@ void MainComponent::resized()
 
     portNumberEditor.setBounds(0, heightForth * 4 + heightForth / 2, halfWidth, heightForth / 2);
     algoButton.setBounds(halfWidth, heightForth * 4, halfWidth, heightForth / 2);
-    triggerFreqButton.setBounds(halfWidth, heightForth * 4 + heightForth / 2, halfWidth, heightForth / 2);
+    udpModeButton.setBounds(halfWidth, heightForth * 4 + heightForth / 2, halfWidth, heightForth / 2);
 }
